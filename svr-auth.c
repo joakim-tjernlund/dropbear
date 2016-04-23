@@ -407,3 +407,24 @@ void send_msg_userauth_success() {
 	TRACE(("leave send_msg_userauth_success"))
 
 }
+
+/* Send change password */
+void send_msg_userauth_chauthtok() {
+#ifdef ENABLE_SVR_PAM_AUTH
+	const char * msg = "";
+#else
+	const char * msg = "Password has expired, please change now";
+#endif
+
+	TRACE(("enter send_msg_userauth_chauthtok"))
+
+	CHECKCLEARTOWRITE();
+
+	buf_putbyte(ses.writepayload, SSH_MSG_USERAUTH_PASSWD_CHANGEREQ);
+	buf_putstring(ses.writepayload, msg, strlen(msg));
+	buf_putstring(ses.writepayload, "en", 2);
+
+	encrypt_packet();
+
+	TRACE(("leave send_msg_userauth_chauthtok"))
+}

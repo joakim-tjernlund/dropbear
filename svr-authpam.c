@@ -40,8 +40,9 @@
 #endif
 
 struct UserDataS {
-	char* user;
+	const char* user;
 	char* passwd;
+	char* new_passwd;
 };
 
 /* PAM conversation function - for now we only handle one message */
@@ -106,9 +107,10 @@ pamConvFunc(int num_msg,
 			 * it here */
 			resp = (struct pam_response*) m_malloc(sizeof(struct pam_response));
 			memset(resp, 0, sizeof(struct pam_response));
-
-			resp->resp = m_strdup(userDatap->passwd);
-			m_burn(userDatap->passwd, strlen(userDatap->passwd));
+			if (strstr(compare_message, "new"))
+				resp->resp = m_strdup(userDatap->new_passwd);
+			else
+				resp->resp = m_strdup(userDatap->passwd);
 			(*respp) = resp;
 			break;
 
@@ -180,7 +182,7 @@ pamConvFunc(int num_msg,
  * interactive responses, over the network. */
 void svr_auth_pam() {
 
-	struct UserDataS userData = {NULL, NULL};
+	struct UserDataS userData = {NULL, NULL, NULL};
 	struct pam_conv pamConv = {
 		pamConvFunc,
 		&userData /* submitted to pamvConvFunc as appdata_ptr */ 
@@ -189,6 +191,7 @@ void svr_auth_pam() {
 	pam_handle_t* pamHandlep = NULL;
 
 	char * password = NULL;
+	char * new_password = NULL;
 	unsigned int passwordlen;
 
 	int rc = PAM_SUCCESS;
@@ -196,19 +199,16 @@ void svr_auth_pam() {
 
 	/* check if client wants to change password */
 	changepw = buf_getbool(ses.payload);
-	if (changepw) {
-		/* not implemented by this server */
-		send_msg_userauth_failure(0, 1);
-		goto cleanup;
-	}
 
 	password = buf_getstring(ses.payload, &passwordlen);
-
+	if (changepw)
+		new_password = buf_getstring(ses.payload, &passwordlen);
 	/* used to pass data to the PAM conversation function - don't bother with
 	 * strdup() etc since these are touched only by our own conversation
 	 * function (above) which takes care of it */
 	userData.user = ses.authstate.pw_name;
 	userData.passwd = password;
+	userData.new_passwd = new_password;
 
 	/* Init pam */
 	if ((rc = pam_start("sshd", NULL, &pamConv, &pamHandlep)) != PAM_SUCCESS) {
@@ -248,7 +248,22 @@ void svr_auth_pam() {
 		goto cleanup;
 	}
 
-	if ((rc = pam_acct_mgmt(pamHandlep, 0)) != PAM_SUCCESS) {
+	if (changepw) {
+		rc = pam_chauthtok(pamHandlep, PAM_CHANGE_EXPIRED_AUTHTOK);
+		if (rc != PAM_SUCCESS) {
+			dropbear_log(LOG_WARNING, "pam_chauthtok() failed, rc=%d, %s",
+				     rc, pam_strerror(pamHandlep, rc));
+			dropbear_log(LOG_WARNING,
+				     "Bad PAM password changing attempt for '%s' from %s",
+				     ses.authstate.pw_name,
+				     svr_ses.addrstring);
+			send_msg_userauth_failure(0, 1);
+			goto cleanup;
+		}
+	}
+	rc = pam_acct_mgmt(pamHandlep, 0);
+
+	if (!(rc == PAM_SUCCESS || rc == PAM_NEW_AUTHTOK_REQD)) {
 		dropbear_log(LOG_WARNING, "pam_acct_mgmt() failed, rc=%d, %s", 
 				rc, pam_strerror(pamHandlep, rc));
 		dropbear_log(LOG_WARNING,
@@ -282,12 +297,19 @@ void svr_auth_pam() {
 	dropbear_log(LOG_NOTICE, "PAM password auth succeeded for '%s' from %s",
 			ses.authstate.pw_name,
 			svr_ses.addrstring);
-	send_msg_userauth_success();
+	if (rc == PAM_NEW_AUTHTOK_REQD)
+		send_msg_userauth_chauthtok();
+	else
+		send_msg_userauth_success();
 
 cleanup:
 	if (password != NULL) {
-		m_burn(password, passwordlen);
+		m_burn(password, strlen(password));
 		m_free(password);
+		if (new_password) {
+			m_burn(new_password, strlen(new_password));
+			m_free(new_password);
+		}
 	}
 	if (pamHandlep != NULL) {
 		TRACE(("pam_end"))

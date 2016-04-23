@@ -36,6 +36,7 @@ void cli_authinitialise(void);
 void recv_msg_userauth_request(void);
 void send_msg_userauth_failure(int partial, int incrfail);
 void send_msg_userauth_success(void);
+void send_msg_userauth_chauthtok(void);
 void send_msg_userauth_banner(buffer *msg);
 void svr_auth_password(void);
 void svr_auth_password(void);
