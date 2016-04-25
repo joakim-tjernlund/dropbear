@@ -141,12 +141,8 @@ void recv_msg_userauth_specific_60() {
 
 #if DROPBEAR_CLI_PASSWORD_AUTH
 	if (cli_ses.lastauthtype == AUTH_TYPE_PASSWORD) {
-		/* Eventually there could be proper password-changing
-		 * support. However currently few servers seem to
-		 * implement it, and password auth is last-resort
-		 * regardless - keyboard-interactive is more likely
-		 * to be used anyway. */
-		dropbear_close("Your password has expired.");
+		cli_auth_new_password();
+		return;
 	}
 #endif
 

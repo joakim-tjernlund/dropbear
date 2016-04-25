@@ -158,4 +158,77 @@ void cli_auth_password() {
 
 	TRACE(("leave cli_auth_password"))
 }
+
+static char *ask_password(char* prompt)
+{
+	char* password = NULL;
+
+#ifdef ENABLE_CLI_ASKPASS_HELPER
+	if (want_askpass())
+	{
+		password = gui_getpass(prompt);
+		if (!password) {
+			dropbear_exit("No password");
+		}
+	} else
+#endif
+	{
+		password = getpass_or_cancel(prompt);
+	}
+	return password;
+}
+
+void cli_auth_new_password() {
+
+	char* password = NULL;
+	char* new_password = NULL;
+	char* new2_password = NULL;
+	char prompt[80];
+
+	TRACE(("enter cli_auth_password"))
+	CHECKCLEARTOWRITE();
+
+	snprintf(prompt, sizeof(prompt), "Enter %s@%s's old password: ",
+				cli_opts.username, cli_opts.remotehost);
+	password = strdup(ask_password(prompt));
+	do {
+		snprintf(prompt, sizeof(prompt), "Enter %s@%s's new password: ",
+			 cli_opts.username, cli_opts.remotehost);
+		new_password = strdup(ask_password(prompt));
+		snprintf(prompt, sizeof(prompt), "Retype %s@%s's new password: ",
+			 cli_opts.username, cli_opts.remotehost);
+		new2_password = strdup(ask_password(prompt));
+		if (!new_password || !new2_password)
+			dropbear_exit("No Memory");
+		if (strcmp(new_password, new2_password) == 0)
+			break; /* Both passwords match, continue with login */
+		free(new_password);
+		free(new2_password);
+		fprintf(stderr, "Mismatch; try again, Ctrl-C to quit\n");
+	} while (1);
+	buf_putbyte(ses.writepayload, SSH_MSG_USERAUTH_REQUEST);
+
+	buf_putstring(ses.writepayload, cli_opts.username,
+			strlen(cli_opts.username));
+
+	buf_putstring(ses.writepayload, SSH_SERVICE_CONNECTION,
+			SSH_SERVICE_CONNECTION_LEN);
+
+	buf_putstring(ses.writepayload, AUTH_METHOD_PASSWORD,
+			AUTH_METHOD_PASSWORD_LEN);
+
+	buf_putbyte(ses.writepayload, 1); /* TRUE */
+	buf_putstring(ses.writepayload, password, strlen(password));
+	buf_putstring(ses.writepayload, new_password, strlen(new_password));
+
+	encrypt_packet();
+	m_burn(password, strlen(password));
+	m_burn(new_password, strlen(new_password));
+	m_burn(new2_password, strlen(new2_password));
+	free(password);
+	free(new_password);
+	free(new2_password);
+	TRACE(("leave cli_auth_password"))
+}
+
 #endif	/* DROPBEAR_CLI_PASSWORD_AUTH */

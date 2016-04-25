@@ -38,6 +38,7 @@ void send_msg_userauth_failure(int partial, int incrfail);
 void send_msg_userauth_success(void);
 void send_msg_userauth_banner(buffer *msg);
 void svr_auth_password(void);
+void svr_auth_password(void);
 void svr_auth_pubkey(void);
 void svr_auth_pam(void);
 
