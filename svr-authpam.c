@@ -253,6 +253,23 @@ void svr_auth_pam() {
 		goto cleanup;
 	}
 
+	if (rc == PAM_SUCCESS) { /* Open the PAM session */
+		rc = pam_open_session(pamHandlep, 0);
+		if (rc != PAM_SUCCESS) {
+			dropbear_log(LOG_WARNING, "pam_open_session() failed, rc=%d, %s",
+				     rc, pam_strerror(pamHandlep, rc));
+			dropbear_log(LOG_WARNING,
+				     "Bad PAM session attempt for '%s' from %s",
+				     ses.authstate.pw_name,
+				     svr_ses.addrstring);
+			send_msg_userauth_failure(0, 1);
+			goto cleanup;
+		}
+	}
+
+	/* Leave out pam_setcred (pamh, PAM_ESTABLISH_CRED) for now.
+	 */
+
 	/* successful authentication */
 	dropbear_log(LOG_NOTICE, "PAM password auth succeeded for '%s' from %s",
 			ses.authstate.pw_name,
