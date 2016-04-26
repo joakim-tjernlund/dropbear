@@ -89,7 +89,7 @@ pamConvFunc(int num_msg,
 
 		case PAM_PROMPT_ECHO_OFF:
 
-			if (!(strcmp(compare_message, "password:") == 0)) {
+			if (strstr(compare_message, "password") == NULL) {
 				/* We don't recognise the prompt as asking for a password,
 				   so can't handle it. Add more above as required for
 				   different pam modules/implementations. If you need
