@@ -77,11 +77,23 @@ static const struct ChanType *svr_chantypes[] = {
 	NULL /* Null termination is mandatory. */
 };
 
+#ifdef ENABLE_SVR_PAM_AUTH
+static void svr_session_end(void) {
+
+	if (svr_ses.pamh) {
+		pam_close_session(svr_ses.pamh, 0);
+		pam_end(svr_ses.pamh, 0);
+		svr_ses.pamh = NULL;
+	}
+}
+#endif
 static void
 svr_session_cleanup(void) {
 	/* free potential public key options */
 	svr_pubkey_options_cleanup();
-
+#ifdef ENABLE_SVR_PAM_AUTH
+	svr_session_end();
+#endif
 	m_free(svr_ses.addrstring);
 	m_free(svr_ses.remotehost);
 	m_free(svr_ses.childpids);
@@ -98,6 +110,9 @@ void svr_session(int sock, int childpipe) {
 	svr_ses.childpipe = childpipe;
 #if DROPBEAR_VFORK
 	svr_ses.server_pid = getpid();
+#endif
+#ifdef ENABLE_SVR_PAM_AUTH
+	svr_ses.pamh = NULL;
 #endif
 	svr_authinitialise();
 	chaninitialise(svr_chantypes);
@@ -235,6 +250,9 @@ void svr_dropbear_log(int priority, const char* format, va_list param) {
 /* called when the remote side closes the connection */
 static void svr_remoteclosed() {
 
+#ifdef ENABLE_SVR_PAM_AUTH
+	svr_session_end();
+#endif
 	m_close(ses.sock_in);
 	m_close(ses.sock_out);
 	ses.sock_in = -1;

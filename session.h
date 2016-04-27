@@ -39,7 +39,9 @@
 #include "chansession.h"
 #include "dbutil.h"
 #include "netio.h"
-
+#ifdef ENABLE_SVR_PAM_AUTH
+#include <security/pam_appl.h>
+#endif
 extern int sessinitdone; /* Is set to 0 somewhere */
 extern int exitflag;
 
@@ -240,7 +242,9 @@ struct serversession {
 #if DROPBEAR_VFORK
 	pid_t server_pid;
 #endif
-
+#ifdef ENABLE_SVR_PAM_AUTH
+	pam_handle_t *pamh;
+#endif
 };
 
 typedef enum {
